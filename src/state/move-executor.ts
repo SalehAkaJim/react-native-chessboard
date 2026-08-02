@@ -186,7 +186,7 @@ export const createMoveExecutor = (
       // The rook slides along its rank — horizontal — so the commit must
       // ride the X spring (the Y spring settles instantly; see commitMove).
       rookFromState.translateX.set(
-        withSpring(rookToPos.x, animations.move, (finished: boolean) => {
+        withSpring(rookToPos.x, animations.move, (finished?: boolean) => {
           'worklet';
           if (!finished) return;
           rookToState.piece.set(rookPiece);
@@ -388,7 +388,7 @@ export const createMoveExecutor = (
 
     // Get valid moves for this piece
     const moves = chess.moves({ square, verbose: true });
-    boardState.validMoves.set(moves.map((m: Square) => m.to));
+    boardState.validMoves.set(moves.map((m: Move) => m.to));
   };
 
   const resetBoard = (

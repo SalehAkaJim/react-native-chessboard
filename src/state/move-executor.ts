@@ -186,7 +186,7 @@ export const createMoveExecutor = (
       // The rook slides along its rank — horizontal — so the commit must
       // ride the X spring (the Y spring settles instantly; see commitMove).
       rookFromState.translateX.set(
-        withSpring(rookToPos.x, animations.move, (finished) => {
+        withSpring(rookToPos.x, animations.move, (finished: boolean) => {
           'worklet';
           if (!finished) return;
           rookToState.piece.set(rookPiece);
@@ -240,6 +240,86 @@ export const createMoveExecutor = (
     if (piece.color === 'b' && targetRank === '1') return true;
 
     return false;
+  };
+
+  const getPieceCode = (
+    piece: { color: string; type: string } | null | undefined
+  ): PieceCode => {
+    if (!piece) return null;
+    return `${piece.color}${piece.type}` as PieceCode;
+  };
+
+  const getSquareFromCoordinates = (row: number, col: number): Square => {
+    const file = String.fromCharCode('a'.charCodeAt(0) + col);
+    const rank = `${8 - row}`;
+    return `${file}${rank}` as Square;
+  };
+
+  const inferSlideFromBoards = (
+    oldBoard: Array<Array<{ color: string; type: string } | null>>,
+    newBoard: Array<Array<{ color: string; type: string } | null>>
+  ): { from: Square; to: Square } | undefined => {
+    const oldPieceCodes: Record<Square, PieceCode | null> = {} as Record<
+      Square,
+      PieceCode | null
+    >;
+    const newPieceCodes: Record<Square, PieceCode | null> = {} as Record<
+      Square,
+      PieceCode | null
+    >;
+    const removedSquares: Square[] = [];
+    const addedSquares: Square[] = [];
+
+    for (let row = 0; row < 8; row += 1) {
+      for (let col = 0; col < 8; col += 1) {
+        const square = getSquareFromCoordinates(row, col);
+        const oldCode = getPieceCode(oldBoard[row][col]);
+        const newCode = getPieceCode(newBoard[row][col]);
+        oldPieceCodes[square] = oldCode;
+        newPieceCodes[square] = newCode;
+
+        if (oldCode === newCode) continue;
+
+        if (oldCode && !newCode) {
+          removedSquares.push(square);
+        } else if (!oldCode && newCode) {
+          addedSquares.push(square);
+        } else {
+          removedSquares.push(square);
+          addedSquares.push(square);
+        }
+      }
+    }
+
+    if (removedSquares.length === 1 && addedSquares.length === 1) {
+      return { from: removedSquares[0], to: addedSquares[0] };
+    }
+
+    if (addedSquares.length === 1 && removedSquares.length > 1) {
+      const destination = addedSquares[0];
+      const destinationPiece = newPieceCodes[destination];
+      if (destinationPiece) {
+        const source = removedSquares.find(
+          (square) => oldPieceCodes[square] === destinationPiece
+        );
+        if (source) return { from: source, to: destination };
+      }
+    }
+
+    if (removedSquares.length >= 2 && addedSquares.length >= 1) {
+      const kingTarget = addedSquares.find(
+        (square) =>
+          newPieceCodes[square] === 'wk' || newPieceCodes[square] === 'bk'
+      );
+      if (kingTarget) {
+        const source = removedSquares.find(
+          (square) => oldPieceCodes[square] === newPieceCodes[kingTarget]
+        );
+        if (source) return { from: source, to: kingTarget };
+      }
+    }
+
+    return undefined;
   };
 
   const tryMove = (
@@ -308,7 +388,7 @@ export const createMoveExecutor = (
 
     // Get valid moves for this piece
     const moves = chess.moves({ square, verbose: true });
-    boardState.validMoves.set(moves.map((m) => m.to));
+    boardState.validMoves.set(moves.map((m: Square) => m.to));
   };
 
   const resetBoard = (
@@ -323,6 +403,8 @@ export const createMoveExecutor = (
       lastMove?: { from: Square; to: Square } | null;
     }
   ): Promise<void> => {
+    const oldBoard = chess.board();
+
     if (fen) {
       try {
         chess.load(fen);
@@ -335,9 +417,10 @@ export const createMoveExecutor = (
       chess.reset();
     }
 
-    const slide = opts?.slide;
-    const lastMove = opts?.lastMove ?? null;
     const board = chess.board();
+    const inferredSlide = opts?.slide ?? inferSlideFromBoards(oldBoard, board);
+    const slide = opts?.slide ?? inferredSlide;
+    const lastMove = opts?.lastMove ?? null;
 
     // Resolves once the slide has settled (or was cancelled), so callers can
     // sequence work against the animation instead of guessing with a timeout.

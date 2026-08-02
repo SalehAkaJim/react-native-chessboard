@@ -11,11 +11,10 @@ import {
 import { SQUARES } from '../state/types';
 
 export interface ChessboardRef {
-  move: (params: {
-    from: Square;
-    to: Square;
-    promotion?: PieceSymbol;
-  }) => Promise<Move | undefined>;
+  move: {
+    (params: { from: Square; to: Square; promotion?: PieceSymbol }): Promise<Move | undefined>;
+    (fen: string): Promise<Move | undefined>;
+  };
   undo: () => Move | null;
   highlight: (params: { square: Square; color?: string }) => void;
   resetAllHighlightedSquares: () => void;
@@ -52,11 +51,19 @@ export const useChessboardRef = ({
   defaultHighlightColor = 'rgba(255, 255, 0, 0.5)',
 }: UseChessboardRefProps) => {
   const move = useCallback(
-    async (params: {
-      from: Square;
-      to: Square;
-      promotion?: PieceSymbol;
-    }): Promise<Move | undefined> => {
+    async (
+      params:
+        | {
+            from: Square;
+            to: Square;
+            promotion?: PieceSymbol;
+          }
+        | string
+    ): Promise<Move | undefined> => {
+      if (typeof params === 'string') {
+        await moveExecutor.resetBoard(params);
+        return undefined;
+      }
       return moveExecutor.tryMove(params.from, params.to, params.promotion);
     },
     [moveExecutor]

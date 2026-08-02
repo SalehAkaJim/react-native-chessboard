@@ -1,3 +1,5 @@
+import React, { forwardRef } from 'react';
+import renderer, { act } from 'react-test-renderer';
 import { Chess, Square } from 'chess.js';
 import { makeMutable } from 'react-native-reanimated';
 import type {
@@ -6,6 +8,8 @@ import type {
   SquareState,
   HighlightState,
 } from '../state/types';
+import { useChessboardRef } from '../hooks/use-chessboard-ref';
+import type { ChessboardRef } from '../hooks/use-chessboard-ref';
 import { SQUARES } from '../state/types';
 import { collectLegalTargets } from '../helpers/collect-legal-targets';
 import { createMoveExecutor } from '../state/move-executor';
@@ -260,6 +264,34 @@ describe('ChessboardRef API', () => {
       executor.resetBoard(customFen);
 
       expect(chess.fen()).toBe(customFen);
+    });
+
+    it('loads a position when ChessboardRef.move() is called with a FEN string', async () => {
+      const chess = new Chess();
+      const boardState = createMockBoardState(chess, PIECE_SIZE);
+      const executor = createMoveExecutor(chess, boardState, config, {});
+
+      const ForwardedHook = forwardRef<ChessboardRef>((props, ref) => {
+        useChessboardRef({
+          ref,
+          chess,
+          boardState,
+          moveExecutor: executor,
+        });
+        return null;
+      });
+
+      const refObject = React.createRef<ChessboardRef>();
+      await act(async () => {
+        renderer.create(<ForwardedHook ref={refObject} />);
+      });
+
+      const fen = '8/8/8/8/8/8/8/8 w - - 0 1';
+      await act(async () => {
+        await refObject.current?.move(fen);
+      });
+
+      expect(chess.fen()).toBe(fen);
     });
 
     it('clears selection and valid moves', () => {

@@ -266,14 +266,18 @@ const App = () => {
 };
 ```
 
-### `move({ from: Square; to: Square; promotion?: PieceSymbol }): Promise<Move | undefined>`
+### `move(params: { from: Square; to: Square; promotion?: PieceSymbol } | string): Promise<Move | undefined>`
 
-Moves a piece programmatically. Pass `promotion` (`'q' | 'r' | 'b' | 'n'`) to resolve pawn promotions without showing the picker dialog.
+Moves a piece programmatically or loads a board position from a FEN string.
 
-The Promise resolves **when the piece animation has settled** (or immediately with `undefined` for an invalid move), so awaited sequences play back cleanly:
+- `move({ from, to, promotion? })` executes a move.
+- `move(fen)` loads the given FEN position and resolves once the board state has updated.
+
+If the FEN string is invalid, the board stays unchanged and the Promise resolves immediately.
 
 ```tsx
-await ref.current?.move({ from: 'e2', to: 'e4' }); // resolves after the piece lands
+await ref.current?.move({ from: 'e2', to: 'e4' });
+await ref.current?.move('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
 ```
 
 ### `undo(): Move | null`

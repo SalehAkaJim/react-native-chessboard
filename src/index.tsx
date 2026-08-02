@@ -51,6 +51,7 @@ const Chessboard = forwardRef<ChessboardRef, ChessboardProps>(
       renderEffect,
       spriteSource,
       fontSource,
+      onPromotionRequired,
     },
     ref
   ) => {

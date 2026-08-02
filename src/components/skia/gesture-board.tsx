@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   },
 });
 
-interface PromotionInfo {
+export interface PromotionInfo {
   from: Square;
   to: Square;
   color: 'w' | 'b';
@@ -52,12 +52,23 @@ interface PromotionInfo {
 export interface GestureBoardProps {
   onMove?: (result: MoveResult) => void;
   onIllegalMove?: (from: Square, to: Square) => void;
+  /**
+   * Called when a pawn move reaches promotion rank.
+   *
+   * Return `false` to prevent the built-in promotion modal from opening.
+   * The caller must then either call `info.complete(piece)` or
+   * `info.cancel()` to resolve the pending promotion.
+   */
+  onPromotionRequired?: (info: PromotionInfo) => boolean | void;
   renderEffect?: (params: EffectParams) => React.ReactNode;
   spriteSource?: ImageSourcePropType;
 }
 
 export const GestureBoard = forwardRef<ChessboardRef, GestureBoardProps>(
-  ({ onMove, onIllegalMove, renderEffect, spriteSource }, ref) => {
+  (
+    { onMove, onIllegalMove, onPromotionRequired, renderEffect, spriteSource },
+    ref
+  ) => {
     const { chess } = useBoardContext();
     const config = useBoardConfig();
     const boardState = useBoardStateValues();
@@ -72,23 +83,31 @@ export const GestureBoard = forwardRef<ChessboardRef, GestureBoardProps>(
     >('');
 
     // Use ref to store promotion info to avoid re-renders during drag
-    // Only the boolean state triggers a render when dialog needs to show/hide
+    // Only the boolean states trigger a render when dialog needs to show/hide
     const promotionInfoRef = useRef<PromotionInfo | null>(null);
+    const [promotionPending, setPromotionPending] = useState(false);
     const [showPromotion, setShowPromotion] = useState(false);
 
-    const handlePromotionRequired = useCallback((info: PromotionInfo) => {
-      // If a promotion is somehow already pending, abandon it (resolving its
-      // move() promise) before replacing it, so the old one never leaks.
-      promotionInfoRef.current?.cancel();
-      promotionInfoRef.current = info;
-      setShowPromotion(true);
-    }, []);
+    const handlePromotionRequired = useCallback(
+      (info: PromotionInfo) => {
+        // If a promotion is somehow already pending, abandon it (resolving its
+        // move() promise) before replacing it, so the old one never leaks.
+        promotionInfoRef.current?.cancel();
+        promotionInfoRef.current = info;
+        setPromotionPending(true);
+
+        const shouldShowPromotion = onPromotionRequired?.(info);
+        setShowPromotion(shouldShowPromotion !== false);
+      },
+      [onPromotionRequired]
+    );
 
     const handlePromotionSelect = useCallback((piece: PieceSymbol) => {
       const info = promotionInfoRef.current;
       if (info) {
         info.complete(piece);
         promotionInfoRef.current = null;
+        setPromotionPending(false);
         setShowPromotion(false);
       }
     }, []);
@@ -121,6 +140,7 @@ export const GestureBoard = forwardRef<ChessboardRef, GestureBoardProps>(
         info.cancel();
       }
       promotionInfoRef.current = null;
+      setPromotionPending(false);
       setShowPromotion(false);
     }, [boardState, config]);
 
@@ -214,9 +234,9 @@ export const GestureBoard = forwardRef<ChessboardRef, GestureBoardProps>(
       boardState,
       config,
       moveExecutor,
-      // Lock the board while the promotion picker is open so a second drag
-      // can't start (and re-trigger) another promotion.
-      gestureEnabled: config.gestureEnabled && !showPromotion,
+      // Lock the board while a promotion is pending so a second drag can't
+      // start (and re-trigger) another promotion.
+      gestureEnabled: config.gestureEnabled && !promotionPending,
       onIllegalMove,
     });
 

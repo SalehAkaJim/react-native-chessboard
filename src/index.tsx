@@ -8,11 +8,19 @@ import type { MoveResult } from './state/move-executor';
 import type { ChessboardRef } from './hooks';
 import type { ChessboardState } from './helpers/get-chessboard-state';
 import type { EffectParams } from './types';
+import type { PromotionInfo } from './components/skia';
 
-export interface ChessboardProps
-  extends Omit<BoardStateProviderProps, 'children'> {
+export interface ChessboardProps extends Omit<
+  BoardStateProviderProps,
+  'children'
+> {
   onMove?: (result: MoveResult) => void;
   onIllegalMove?: (from: Square, to: Square) => void;
+  /**
+   * Called when promotion is required.
+   * Return `false` to suppress the default promotion modal.
+   */
+  onPromotionRequired?: (info: PromotionInfo) => boolean | void;
   renderEffect?: (params: EffectParams) => React.ReactNode;
   /**
    * Optional custom piece sprite sheet. Must match the standard
@@ -61,6 +69,7 @@ const Chessboard = forwardRef<ChessboardRef, ChessboardProps>(
           ref={ref}
           onMove={onMove}
           onIllegalMove={onIllegalMove}
+          onPromotionRequired={onPromotionRequired}
           renderEffect={renderEffect}
           spriteSource={spriteSource}
         />
@@ -76,3 +85,4 @@ export { Chessboard };
 export { preloadPieceSpriteSheet } from './assets/piece-images';
 export type { ChessboardRef, ChessboardState, MoveResult, Move };
 export type { EffectParams } from './types';
+export type { PromotionInfo } from './components/skia';
